@@ -19,6 +19,8 @@ def get_args():
 
 
 def merge_args(args, cfg):
+    new_cfg = CfgNode({})
+    new_cfg.set_new_allowed(True)
     key_gen = get_cfg_keys(cfg, cfg.keys())
     while True:
         try:
@@ -26,11 +28,25 @@ def merge_args(args, cfg):
             value, args_key = eval("cfg." + key)
             if (args_key in args) and (eval("args." + args_key) is not None):
                 value = eval("args." + args_key)
-                cfg.merge_from_list([key, (value, args_key)])
+            key_split =  key.split(".")
+            t1 = {key_split[-1]: value}
+            t2 = {}
+            for k in key_split[:-1][::-1]:
+                if t1 == {}:
+                    t1[k] = t2
+                    t2 = {}
+                else:
+                    t2[k] = t1
+                    t1 = {}
+            if t1 == {}:
+                t2 = CfgNode(t2)
+                new_cfg = merge_cfg(t2, new_cfg)
+            else:
+                t1 = CfgNode(t1)
+                new_cfg = merge_cfg(t1, new_cfg)
         except StopIteration:
             break
-    cfg.freeze()
-    return cfg
+    return new_cfg
 
 
 def get_cfg_keys(cn, keys):
@@ -40,3 +56,15 @@ def get_cfg_keys(cn, keys):
             yield from get_cfg_keys(cn, list(map(lambda x: key + "." + x, cur_node.keys())))
         else:
             yield key
+
+def merge_cfg(a, b):
+    for k, v in a.items():
+        if k in b:
+            if isinstance(v, CfgNode):
+                merge_cfg(v, b[k])
+            else:
+                b[k] = v
+        else:
+            b[k] = v
+    return b
+
